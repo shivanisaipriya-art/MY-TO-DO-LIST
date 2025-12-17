@@ -1,0 +1,236 @@
+# MY-TO-DO-LIST
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultimate Task Alerter</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card: #1e293b;
+            --accent: #38bdf8;
+            --success: #22c55e;
+            --text: #f1f5f9;
+        }
+
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background-color: gray;
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 450px;
+            background: black;
+            padding: 25px;
+            border-radius: 16px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+            border: 1px solid #334155;
+        }
+
+        .header { text-align: center; border-bottom: 1px solid #334155; margin-bottom: 20px; padding-bottom: 10px; }
+        
+        .setup-btn {
+            background: green;
+            color: black;
+            border: none;
+            width: 100%;
+            padding: 10px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-bottom: 15px;
+        }
+
+        .input-box {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        input {
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            background: white;
+            color: BLACK;
+        }
+
+        .add-btn {
+            background: var(--accent);
+            color: red;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .task-list { list-style: none; padding: 0; }
+
+        .task-item {
+            background: #334155;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: 0.3s;
+        }
+
+        .task-item.completed {
+            opacity: 0.5;
+            text-decoration: line-through;
+            border-left: 4px solid var(--success);
+        }
+
+        .task-info b { display: block; font-size: 1.1rem; }
+        .task-info span { color: var(--accent); font-size: 0.9rem; }
+
+        .btn-group { display: flex; gap: 5px; }
+        
+        .action-btn {
+            padding: 6px 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            color: white;
+        }
+
+        .complete-btn { background: var(--success); }
+        .delete-btn { background: #ef4444; }
+
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <div class="header">
+        <h2>TO DO LIST</h2>
+    </div>
+
+    <button class="setup-btn" onclick="enableNotifications()">🔔 Click to Enable Alerts</button>
+
+    <div class="input-box">
+        <input type="text" id="taskName" placeholder="Task description...">
+        <input type="time" id="taskTime">
+        <button class="add-btn" onclick="addTask()">Save Task & Set Alarm</button>
+    </div>
+
+    <ul id="taskList" class="task-list"></ul>
+</div>
+
+<script>
+    let tasks = JSON.parse(localStorage.getItem('frontEndTasks')) || [];
+
+    function enableNotifications() {
+        Notification.requestPermission().then(permission => {
+            if (permission === "granted") {
+                alert("Alerts are active! Keep this tab open (you can minimize it).");
+            }
+        });
+    }
+
+    function addTask() {
+        const name = document.getElementById('taskName').value;
+        const time = document.getElementById('taskTime').value;
+
+        if (!name || !time) return alert("Enter both Task and Time!");
+
+        const newTask = {
+            id: Date.now(),
+            name: name,
+            time: time,
+            completed: false,
+            notified: false
+        };
+
+        tasks.push(newTask);
+        updateStorage();
+        document.getElementById('taskName').value = '';
+    }
+
+    function toggleComplete(id) {
+        tasks = tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t);
+        updateStorage();
+    }
+
+    function deleteTask(id) {
+        tasks = tasks.filter(t => t.id !== id);
+        updateStorage();
+    }
+
+    function updateStorage() {
+        localStorage.setItem('frontEndTasks', JSON.stringify(tasks));
+        render();
+    }
+
+    function render() {
+        const list = document.getElementById('taskList');
+        list.innerHTML = '';
+
+        tasks.forEach(task => {
+            const li = document.createElement('li');
+            li.className = `task-item ${task.completed ? 'completed' : ''}`;
+            
+            li.innerHTML = `
+                <div class="task-info">
+                    <b>${task.name}</b>
+                    <span>⏰ ${task.time}</span>
+                </div>
+                <div class="btn-group">
+                    <button class="action-btn complete-btn" onclick="toggleComplete(${task.id})">
+                        ${task.completed ? 'Undo' : 'Done'}
+                    </button>
+                    <button class="action-btn delete-btn" onclick="deleteTask(${task.id})">X</button>
+                </div>
+            `;
+            list.appendChild(li);
+        });
+    }
+
+    // THE NOTIFICATION ENGINE (Checking every 10 seconds)
+    setInterval(() => {
+        const now = new Date();
+        const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+        tasks.forEach(task => {
+            // Check: Same time? Not already notified? Not already completed?
+            if (task.time === currentTime && !task.notified && !task.completed) {
+                
+                // Show Desktop Notification
+                if (Notification.permission === "granted") {
+                    new Notification("⏰ Task Alert!", {
+                        body: `Time to start: ${task.name}`,
+                        requireInteraction: true // Keeps the notification on screen
+                    });
+                }
+
+                // Play Sound
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                oscillator.type = 'square';
+                oscillator.frequency.setValueAtTime(500, audioCtx.currentTime);
+                oscillator.connect(audioCtx.destination);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 1.5); // Beep for 1.5 seconds
+
+                task.notified = true;
+                updateStorage();
+            }
+        });
+    }, 10000);
+
+    render();
+</script>
+
+</body>
+</html>
